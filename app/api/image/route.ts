@@ -19,7 +19,11 @@ export async function POST(req: Request) {
     })
 
     const first = response.data ? response.data[0] : undefined
-    const url = first?.url || ""
+    let url = first?.url || ""
+    if (!url && (first as { b64_json?: string })?.b64_json) {
+      const b64 = (first as { b64_json: string }).b64_json
+      url = `data:image/png;base64,${b64}`
+    }
     return NextResponse.json({ url })
   } catch (error) {
     console.error("Image generation error:", error)
