@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { Download, Loader2, ImageIcon } from "lucide-react";
+import { Download, Loader2, ImageIcon, Send } from "lucide-react";
 import type { CarouselSlide, GeneratedImage } from "@/lib/shared";
 import { downloadFile } from "@/lib/shared";
 import { ImagePromptEditor } from "./ImagePromptEditor";
@@ -29,6 +29,7 @@ export function SlideDeck({ topic, initialSlides, caption, hashtags }: SlideDeck
     }))
   );
   const [imageLoading, setImageLoading] = useState(false);
+  const [publishStatus, setPublishStatus] = useState<{ ok: boolean; message: string } | null>(null);
 
   async function generateImages(prompts: string[]) {
     setImageLoading(true);
@@ -75,6 +76,37 @@ export function SlideDeck({ topic, initialSlides, caption, hashtags }: SlideDeck
       .map((s, i) => `Slide ${i + 1}\nHeadline: ${s.headline}\nBody: ${s.body}\nImage prompt: ${s.visualPrompt}\nImage: ${s.imageUrl || "not generated"}`)
       .join("\n\n---\n\n")}\n\nHashtags: ${hashtags.join(" ")}`;
     downloadFile("carousel-package.txt", packageText, "text/plain");
+  }
+
+  function publishText() {
+    const text = `${localCaption}\n\n${slides
+      .map((s, i) => `Slide ${i + 1}: ${s.headline}\n${s.body}`)
+      .join("\n\n")}\n\n${hashtags.map((h) => "#" + h).join(" ")}`;
+    return text;
+  }
+
+  async function publishToLinkedIn() {
+    const confirmed = window.confirm(
+      "This will publish your carousel caption as a LinkedIn text post now. Images must be uploaded manually. Continue?"
+    );
+    if (!confirmed) return;
+
+    setPublishStatus(null);
+    try {
+      const res = await fetch("/api/linkedin/publish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: publishText() }),
+      });
+      const data = (await res.json()) as { success?: boolean; postId?: string; error?: string };
+      if (res.ok && data.success) {
+        setPublishStatus({ ok: true, message: `Published. Post ID: ${data.postId}` });
+      } else {
+        setPublishStatus({ ok: false, message: data.error || "Publish failed" });
+      }
+    } catch (err) {
+      setPublishStatus({ ok: false, message: err instanceof Error ? err.message : "Unknown error" });
+    }
   }
 
   return (
@@ -146,10 +178,21 @@ export function SlideDeck({ topic, initialSlides, caption, hashtags }: SlideDeck
               <span key={h} className="bg-background border rounded px-2 py-0.5">#{h}</span>
             ))}
           </div>
-          <Button onClick={exportPackage}>
-            <Download className="w-4 h-4 mr-2" />
-            Export carousel package
-          </Button>
+          <div className="flex flex-wrap gap-3">
+            <Button onClick={exportPackage}>
+              <Download className="w-4 h-4 mr-2" />
+              Export carousel package
+            </Button>
+            <Button onClick={publishToLinkedIn} variant="default">
+              <Send className="w-4 h-4 mr-2" />
+              Publish to LinkedIn
+            </Button>
+          </div>
+          {publishStatus && (
+            <span className={`text-xs ${publishStatus.ok ? "text-green-600" : "text-destructive"}`}>
+              {publishStatus.message}
+            </span>
+          )}
         </CardContent>
       </Card>
     </div>

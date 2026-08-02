@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Download } from "lucide-react";
+import { Download, Send } from "lucide-react";
 import type { NewsletterResult, RankedArticle } from "@/lib/shared";
 import { downloadFile } from "@/lib/shared";
 
@@ -19,10 +19,36 @@ export function NewsletterEditor({ result }: NewsletterEditorProps) {
   const [preview, setPreview] = useState(result.preview);
   const [body, setBody] = useState(result.body);
   const [cta, setCta] = useState(result.cta);
+  const [publishStatus, setPublishStatus] = useState<{ ok: boolean; message: string } | null>(null);
 
   function exportNewsletter() {
     const content = `Subject: ${subject}\n\nPreview: ${preview}\n\n---\n\n${body}\n\n---\n\nCTA: ${cta}`;
     downloadFile("newsletter.md", content, "text/markdown");
+  }
+
+  async function publishToLinkedIn() {
+    const confirmed = window.confirm(
+      "This will publish your newsletter as a LinkedIn text post now. Continue?"
+    );
+    if (!confirmed) return;
+
+    const text = `${subject}\n\n${body}\n\n${cta}`;
+    setPublishStatus(null);
+    try {
+      const res = await fetch("/api/linkedin/publish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      const data = (await res.json()) as { success?: boolean; postId?: string; error?: string };
+      if (res.ok && data.success) {
+        setPublishStatus({ ok: true, message: `Published. Post ID: ${data.postId}` });
+      } else {
+        setPublishStatus({ ok: false, message: data.error || "Publish failed" });
+      }
+    } catch (err) {
+      setPublishStatus({ ok: false, message: err instanceof Error ? err.message : "Unknown error" });
+    }
   }
 
   return (
@@ -81,10 +107,21 @@ export function NewsletterEditor({ result }: NewsletterEditorProps) {
               <label className="text-xs font-mono text-muted-foreground">Call to action</label>
               <Input value={cta} onChange={(e) => setCta(e.target.value)} />
             </div>
-            <Button onClick={exportNewsletter}>
-              <Download className="w-4 h-4 mr-2" />
-              Export newsletter
-            </Button>
+            <div className="flex flex-wrap gap-3">
+              <Button onClick={exportNewsletter}>
+                <Download className="w-4 h-4 mr-2" />
+                Export newsletter
+              </Button>
+              <Button onClick={publishToLinkedIn}>
+                <Send className="w-4 h-4 mr-2" />
+                Publish to LinkedIn
+              </Button>
+            </div>
+            {publishStatus && (
+              <span className={`text-xs ${publishStatus.ok ? "text-green-600" : "text-destructive"}`}>
+                {publishStatus.message}
+              </span>
+            )}
           </CardContent>
         </Card>
       </div>
