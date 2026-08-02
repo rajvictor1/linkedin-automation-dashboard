@@ -16,7 +16,6 @@ export async function POST(req: Request) {
       prompt,
       n: 1,
       size: "1024x1024",
-      response_format: "url",
     })
 
     const first = response.data ? response.data[0] : undefined
