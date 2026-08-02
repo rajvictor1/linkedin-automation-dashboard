@@ -1,19 +1,25 @@
+"use client";
+
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
-import { ImageIcon, Download } from "lucide-react";
+import { ImageIcon, Download, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   type PipelineStage,
-  SLIDE_IMAGES,
-  CAROUSEL_CAPTION,
-  NEWSLETTER_MARKDOWN,
+  type PipelineResult,
+  type GeneratedImage,
+  downloadFile,
 } from "@/lib/mock-data";
 
 interface StageDetailProps {
   stage: PipelineStage | null;
+  images: GeneratedImage[];
+  onGenerateImages: () => void;
+  imageLoading: boolean;
 }
 
 const contentTypeLabel: Record<PipelineStage["contentType"], string> = {
@@ -22,17 +28,12 @@ const contentTypeLabel: Record<PipelineStage["contentType"], string> = {
   both: "Both",
 };
 
-function downloadFile(name: string, content: string, type: string) {
-  const blob = new Blob([content], { type });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = name;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-export function StageDetail({ stage }: StageDetailProps) {
+export function StageDetail({
+  stage,
+  images,
+  onGenerateImages,
+  imageLoading,
+}: StageDetailProps) {
   if (!stage) {
     return (
       <Card className="h-full min-h-[320px] flex items-center justify-center bg-muted/20">
@@ -45,6 +46,7 @@ export function StageDetail({ stage }: StageDetailProps) {
 
   const showImages = stage.id === "visuals";
   const showExport = stage.id === "ready";
+  const data = stage.data as PipelineResult | undefined;
 
   return (
     <Card className="h-full min-h-[320px] flex flex-col">
@@ -63,21 +65,41 @@ export function StageDetail({ stage }: StageDetailProps) {
       <CardContent className="flex-1 py-4">
         <ScrollArea className="h-full">
           {showImages && (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-4">
-              {SLIDE_IMAGES.map((img) => (
-                <div
-                  key={img.slide}
-                  className={cn(
-                    "aspect-square rounded-lg border border-border bg-muted flex flex-col items-center justify-center gap-2 p-2 text-center",
-                    "hover:bg-muted/80 transition-colors"
-                  )}
-                >
-                  <ImageIcon className="w-8 h-8 text-muted-foreground" />
-                  <span className="text-[10px] font-mono text-muted-foreground leading-tight">
-                    {img.label}
-                  </span>
-                </div>
-              ))}
+            <div className="mb-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mb-4">
+                {images.map((img) => (
+                  <div
+                    key={img.slide}
+                    className={cn(
+                      "aspect-square rounded-lg border border-border bg-muted flex flex-col items-center justify-center gap-2 p-2 text-center overflow-hidden",
+                      "hover:bg-muted/80 transition-colors"
+                    )}
+                  >
+                    {img.url ? (
+                      <img
+                        src={img.url}
+                        alt={`Slide ${img.slide}`}
+                        className="w-full h-full object-cover rounded"
+                      />
+                    ) : (
+                      <>
+                        <ImageIcon className="w-8 h-8 text-muted-foreground" />
+                        <span className="text-[10px] font-mono text-muted-foreground leading-tight">
+                          Slide {img.slide}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <Button
+                onClick={onGenerateImages}
+                disabled={imageLoading || images.length === 0}
+                size="sm"
+              >
+                {imageLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                Generate slide images
+              </Button>
             </div>
           )}
 
@@ -85,32 +107,32 @@ export function StageDetail({ stage }: StageDetailProps) {
             {stage.detail}
           </div>
 
-          {showExport && (
+          {showExport && data && (
             <div className="flex flex-wrap gap-3 mt-6">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  downloadFile("carousel-caption.txt", CAROUSEL_CAPTION, "text/plain")
-                }
-              >
-                <Download className="w-4 h-4 mr-2" />
-                Download caption
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  downloadFile(
-                    "newsletter.md",
-                    NEWSLETTER_MARKDOWN,
-                    "text/markdown"
-                  )
-                }
-              >
-                <Download className="w-4 h-4 mr-2" />
-                Download newsletter
-              </Button>
+              {data.carousel?.caption && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    downloadFile("carousel-caption.txt", data.carousel.caption, "text/plain")
+                  }
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Download caption
+                </Button>
+              )}
+              {data.newsletter && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    downloadFile("newsletter.md", data.newsletter, "text/markdown")
+                  }
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Download newsletter
+                </Button>
+              )}
             </div>
           )}
         </ScrollArea>

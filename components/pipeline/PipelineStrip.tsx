@@ -5,13 +5,21 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { StageCard } from "./StageCard";
 import { StageDetail } from "./StageDetail";
-import type { PipelineStage } from "@/lib/mock-data";
+import type { PipelineStage, GeneratedImage } from "@/lib/mock-data";
 
 interface PipelineStripProps {
   stages: PipelineStage[];
+  images: GeneratedImage[];
+  onGenerateImages: () => void;
+  imageLoading: boolean;
 }
 
-export function PipelineStrip({ stages }: PipelineStripProps) {
+export function PipelineStrip({
+  stages,
+  images,
+  onGenerateImages,
+  imageLoading,
+}: PipelineStripProps) {
   const [selected, setSelected] = useState<PipelineStage | null>(stages[0] ?? null);
 
   return (
@@ -34,7 +42,12 @@ export function PipelineStrip({ stages }: PipelineStripProps) {
       </div>
 
       <div className="flex-1 min-h-0">
-        <StageDetail stage={selected} />
+        <StageDetail
+          stage={selected}
+          images={images}
+          onGenerateImages={onGenerateImages}
+          imageLoading={imageLoading}
+        />
       </div>
     </div>
   );
