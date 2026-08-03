@@ -10,7 +10,7 @@ type Send = (event: Progress) => void;
 const sectionSchema = z.object({
   heading: z.string().min(1).max(120),
   body: z.string().min(1).max(2200),
-  citations: z.array(z.number().int().min(1).max(8)).min(1).max(4),
+  citations: z.array(z.union([z.number(), z.string()])).max(8).optional(),
 });
 
 const draftSchema = z.object({
@@ -19,7 +19,7 @@ const draftSchema = z.object({
   title: z.string().min(1).max(160),
   dek: z.string().min(1).max(400),
   introduction: z.string().min(1).max(1600),
-  sections: z.array(sectionSchema).min(2).max(6),
+  sections: z.array(sectionSchema).min(1).max(6),
   closing: z.string().min(1).max(1200),
 });
 
@@ -33,6 +33,21 @@ function cleanJson(text: string) {
     trimmed = trimmed.replace(/^```[a-zA-Z]*\n?/, "").replace(/\n?```$/, "").trim();
   }
   return trimmed;
+}
+
+function normalizeCitations(citations?: (string | number)[]) {
+  if (!citations || !Array.isArray(citations)) return [1];
+  const numbers = citations
+    .map((c) => {
+      if (typeof c === "number" && !Number.isNaN(c)) return c;
+      if (typeof c === "string") {
+        const match = c.match(/\d+/);
+        return match ? parseInt(match[0], 10) : 1;
+      }
+      return 1;
+    })
+    .filter((n) => n >= 1 && n <= 8);
+  return numbers.length > 0 ? numbers.slice(0, 4) : [1];
 }
 
 export async function generateNewsletter(topic: string, includeLeadVisual: boolean, send?: Send): Promise<NewsletterRun> {
@@ -87,7 +102,7 @@ export async function generateNewsletter(topic: string, includeLeadVisual: boole
     messages: [
       {
         role: "system",
-        content: "You are a newsletter editor for a personal brand focused on AI, automation, and enterprise technology. Write a structured, cited, human-sounding newsletter with a strong hook, clear sections, and a CTA. Return only valid JSON with keys: subject, previewText, title, dek, introduction, sections (array of heading, body, citations), closing.",
+        content: "You are a newsletter editor for a personal brand focused on AI, automation, and enterprise technology. Write a structured, cited, human-sounding newsletter with a strong hook, clear sections, and a CTA. Return only valid JSON with keys: subject, previewText, title, dek, introduction, sections (array of heading, body, citations), closing. Each section must have at least one citation number referencing the source list.",
       },
       {
         role: "user",
@@ -103,7 +118,14 @@ export async function generateNewsletter(topic: string, includeLeadVisual: boole
   if (!parsed.success) {
     throw new Error(`Invalid newsletter draft: ${parsed.error.message}`);
   }
-  const draft: NewsletterDraft = parsed.data;
+
+  const draft: NewsletterDraft = {
+    ...parsed.data,
+    sections: parsed.data.sections.map((section) => ({
+      ...section,
+      citations: normalizeCitations(section.citations),
+    })),
+  };
 
   let leadVisual: NewsletterRun["leadVisual"] = undefined;
   if (includeLeadVisual) {
