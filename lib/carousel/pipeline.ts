@@ -1,6 +1,5 @@
 "use server";
 
-import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
 import { getFirecrawl, getOpenAI, ConfigurationError } from "@/lib/providers";
 import type { CarouselProgressEvent, CarouselRun, CarouselSlide, CarouselSource } from "@/lib/types";
@@ -11,7 +10,6 @@ type Send = (event: Progress) => void;
 const contentSlideSchema = z.object({
   title: z.string().min(4).max(80),
   body: z.string().min(8).max(180),
-  imagePrompt: z.string().min(20).max(600),
 });
 
 const planSchema = z.object({
@@ -43,6 +41,14 @@ function isTrusted(url: string) {
 
 function generateRunId() {
   return crypto.randomUUID();
+}
+
+function cleanJson(text: string) {
+  let trimmed = text.trim();
+  if (trimmed.startsWith("```")) {
+    trimmed = trimmed.replace(/^```[a-zA-Z]*\n?/, "").replace(/\n?```$/, "").trim();
+  }
+  return trimmed;
 }
 
 export async function generateCarousel(send?: Send): Promise<CarouselRun> {
@@ -115,30 +121,34 @@ export async function generateCarousel(send?: Send): Promise<CarouselRun> {
     `${i + 1}. ${s.title} | URL: ${s.url} | Summary: ${s.summary}`
   ).join("\n\n");
 
-  const planCompletion: any = await (openai as any).beta.chat.completions.parse({
+  const completion = await openai.chat.completions.create({
     model: "gpt-4o-mini",
     messages: [
       {
         role: "system",
-        content: "You are a LinkedIn content strategist. Pick the strongest story from the provided sources and plan a 5-slide carousel.\nSlides 1-4 are content. Slide 5 is a CTA.\nWrite punchy, shareable copy for slides 1-4.",
+        content: "You are a LinkedIn content strategist. Pick the strongest story from the provided sources and plan a 5-slide carousel.\nSlides 1-4 are content. Slide 5 is a CTA.\nWrite punchy, shareable copy for slides 1-4. Return only valid JSON with keys: topic (string) and slides (array of 4 objects with title and body).",
       },
       {
         role: "user",
-        content: `Sources:\n${sourceContext}\n\nPlan a 4-slide content narrative plus a CTA slide with the fixed watermark "rajeshkumar.com/subscribe".\nReturn JSON matching the schema.`,
+        content: `Sources:\n${sourceContext}\n\nPlan a 4-slide content narrative plus a CTA slide with the fixed watermark "rajeshkumar.com/subscribe".`,
       },
     ],
-    response_format: zodTextFormat(planSchema, "carousel_plan"),
+    response_format: { type: "json_object" },
     temperature: 0.7,
   });
 
-  const plan = planCompletion.choices[0]?.message?.parsed;
-  if (!plan) throw new Error("Failed to parse carousel plan");
+  const raw = cleanJson(completion.choices[0]?.message?.content || "{}");
+  const parsed = planSchema.safeParse(JSON.parse(raw));
+  if (!parsed.success) {
+    throw new Error(`Invalid carousel plan: ${parsed.error.message}`);
+  }
+  const plan = parsed.data;
 
   const selectedArticle = sources[0];
 
   send({ type: "progress", node: "copywriting", status: "done", message: `Selected: ${selectedArticle.title}` });
 
-  const slides: CarouselSlide[] = plan.slides.map((s: any, idx: number) => ({
+  const slides: CarouselSlide[] = plan.slides.map((s, idx) => ({
     index: idx + 1,
     kind: "content",
     title: s.title,

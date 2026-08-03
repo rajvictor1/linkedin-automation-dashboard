@@ -1,6 +1,5 @@
 "use server";
 
-import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
 import { getFirecrawl, getOpenAI, ConfigurationError } from "@/lib/providers";
 import type { NewsletterDraft, NewsletterProgressEvent, NewsletterRun, NewsletterSource } from "@/lib/types";
@@ -26,6 +25,14 @@ const draftSchema = z.object({
 
 function generateRunId() {
   return crypto.randomUUID();
+}
+
+function cleanJson(text: string) {
+  let trimmed = text.trim();
+  if (trimmed.startsWith("```")) {
+    trimmed = trimmed.replace(/^```[a-zA-Z]*\n?/, "").replace(/\n?```$/, "").trim();
+  }
+  return trimmed;
 }
 
 export async function generateNewsletter(topic: string, includeLeadVisual: boolean, send?: Send): Promise<NewsletterRun> {
@@ -75,24 +82,28 @@ export async function generateNewsletter(topic: string, includeLeadVisual: boole
     `${i + 1}. ${s.title} | ${s.url} | ${s.summary}`
   ).join("\n\n");
 
-  const draftCompletion: any = await (openai as any).beta.chat.completions.parse({
+  const completion = await openai.chat.completions.create({
     model: "gpt-4o-mini",
     messages: [
       {
         role: "system",
-        content: "You are a newsletter editor for a personal brand focused on AI, automation, and enterprise technology. Write a structured, cited, human-sounding newsletter with a strong hook, clear sections, and a CTA.",
+        content: "You are a newsletter editor for a personal brand focused on AI, automation, and enterprise technology. Write a structured, cited, human-sounding newsletter with a strong hook, clear sections, and a CTA. Return only valid JSON with keys: subject, previewText, title, dek, introduction, sections (array of heading, body, citations), closing.",
       },
       {
         role: "user",
-        content: `Topic: ${topic}\n\nSources:\n${sourceContext}\n\nWrite the newsletter. Return JSON matching the schema.`,
+        content: `Topic: ${topic}\n\nSources:\n${sourceContext}\n\nWrite the newsletter.`,
       },
     ],
-    response_format: zodTextFormat(draftSchema, "newsletter_draft"),
+    response_format: { type: "json_object" },
     temperature: 0.7,
   });
 
-  const draft: NewsletterDraft = draftCompletion.choices[0]?.message?.parsed;
-  if (!draft) throw new Error("Failed to parse newsletter draft");
+  const raw = cleanJson(completion.choices[0]?.message?.content || "{}");
+  const parsed = draftSchema.safeParse(JSON.parse(raw));
+  if (!parsed.success) {
+    throw new Error(`Invalid newsletter draft: ${parsed.error.message}`);
+  }
+  const draft: NewsletterDraft = parsed.data;
 
   let leadVisual: NewsletterRun["leadVisual"] = undefined;
   if (includeLeadVisual) {
