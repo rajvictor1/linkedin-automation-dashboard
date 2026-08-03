@@ -2,7 +2,6 @@ import { AppSidebar } from "@/components/dashboard/app-sidebar"
 import { SiteHeader } from "@/components/dashboard/site-header"
 import { CarouselWorkflow } from "@/components/dashboard/carousel-workflow"
 import { NewsletterWorkflow } from "@/components/dashboard/newsletter-workflow"
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 
 export default async function DashboardPage({
   searchParams,
@@ -13,21 +12,14 @@ export default async function DashboardPage({
   const workflow = params.workflow === "newsletter" ? "newsletter" : "carousel"
 
   return (
-    <SidebarProvider
-      style={
-        {
-          "--sidebar-width": "calc(var(--spacing) * 64)",
-          "--header-height": "calc(var(--spacing) * 12)",
-        } as React.CSSProperties
-      }
-    >
+    <div className="flex min-h-screen">
       <AppSidebar activeWorkflow={workflow} />
-      <SidebarInset className="bg-[var(--background)]">
+      <div className="flex flex-1 flex-col">
         <SiteHeader workflow={workflow} />
-        <main className="flex flex-1 flex-col gap-6 p-6">
+        <main className="flex flex-1 flex-col gap-6 bg-[var(--background)] p-6">
           {workflow === "newsletter" ? <NewsletterWorkflow /> : <CarouselWorkflow />}
         </main>
-      </SidebarInset>
-    </SidebarProvider>
+      </div>
+    </div>
   )
 }
