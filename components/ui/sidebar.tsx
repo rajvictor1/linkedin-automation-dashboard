@@ -127,13 +127,20 @@ export function SidebarMenuButton({
   children,
   ...props
 }: React.ComponentProps<"button"> & { asChild?: boolean; isActive?: boolean }) {
-  const Comp = asChild ? Slot : "button"
   const { open } = useSidebar()
+  const classes = cn(sidebarMenuButtonVariants({ isActive }), className)
+  if (asChild) {
+    return (
+      <Slot className={classes} {...props}>
+        {React.Children.only(children)}
+      </Slot>
+    )
+  }
   return (
-    <Comp className={cn(sidebarMenuButtonVariants({ isActive }), className)} {...props}>
+    <button className={classes} {...props}>
       {children}
       {!open && <span className="sr-only">{children}</span>}
-    </Comp>
+    </button>
   )
 }
 

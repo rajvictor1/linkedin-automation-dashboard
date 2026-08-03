@@ -30,12 +30,12 @@ export function AppSidebar({ activeWorkflow }: { activeWorkflow: string }) {
             <SidebarMenu>
               {items.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild isActive={item.active}>
-                    <Link href={item.href} className="flex items-center">
+                  <Link href={item.href} className="block rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]">
+                    <SidebarMenuButton isActive={item.active} className="w-full">
                       <item.icon className="h-4 w-4 shrink-0" />
                       {open && <span>{item.title}</span>}
-                    </Link>
-                  </SidebarMenuButton>
+                    </SidebarMenuButton>
+                  </Link>
                 </SidebarMenuItem>
               ))}
             </SidebarMenu>
